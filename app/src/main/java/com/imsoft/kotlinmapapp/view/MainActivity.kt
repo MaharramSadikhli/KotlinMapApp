@@ -1,10 +1,11 @@
-package com.imsoft.kotlinmapapp
+package com.imsoft.kotlinmapapp.view
 
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import com.imsoft.kotlinmapapp.R
 import com.imsoft.kotlinmapapp.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {

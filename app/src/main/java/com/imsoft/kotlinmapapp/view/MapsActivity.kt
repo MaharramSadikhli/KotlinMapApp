@@ -1,9 +1,9 @@
-package com.imsoft.kotlinmapapp
+package com.imsoft.kotlinmapapp.view
 
 import android.Manifest
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +14,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.room.Room
 import com.google.android.gms.maps.CameraUpdateFactory
 
 import com.google.android.gms.maps.GoogleMap
@@ -22,7 +23,14 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.snackbar.Snackbar
+import com.imsoft.kotlinmapapp.R
 import com.imsoft.kotlinmapapp.databinding.ActivityMapsBinding
+import com.imsoft.kotlinmapapp.model.Place
+import com.imsoft.kotlinmapapp.roomdb.PlaceDB
+import com.imsoft.kotlinmapapp.roomdb.PlaceDao
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import io.reactivex.rxjava3.disposables.CompositeDisposable
+import io.reactivex.rxjava3.schedulers.Schedulers
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
 
@@ -35,6 +43,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
     private var trackBoolean: Boolean? = null
     private var selectedLat: Double? = null
     private var selectedLng: Double? = null
+    private lateinit var db: PlaceDB
+    private lateinit var placeDao: PlaceDao
+    val compositeDisposable = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +64,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
         selectedLat = 0.0
         selectedLng = 0.0
+
+        db = Room.databaseBuilder(
+            applicationContext, PlaceDB::class.java, "Places"
+        ).build()
+
+        placeDao = db.placeDao()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -75,11 +92,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
         }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        {
+        if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
 
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION))
-            {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    this, Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            ) {
                 Snackbar.make(binding.root, "Permission Needed!", Snackbar.LENGTH_INDEFINITE)
                     .setAction("OK") {
                         // request permission
@@ -122,11 +143,17 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
                             LocationManager.GPS_PROVIDER, 1000, 0f, locationListener
                         )
 
-                        val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        val lastLocation =
+                            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
 
                         if (lastLocation != null) {
-                            val userLastLocation = LatLng(lastLocation.latitude, lastLocation.longitude)
-                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLastLocation, 15f))
+                            val userLastLocation =
+                                LatLng(lastLocation.latitude, lastLocation.longitude)
+                            mMap.moveCamera(
+                                CameraUpdateFactory.newLatLngZoom(
+                                    userLastLocation, 15f
+                                )
+                            )
                         }
 
                         mMap.isMyLocationEnabled = true
@@ -152,6 +179,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
     }
 
-    fun saveBtnClick(view: View) {}
+    fun saveBtnClick(view: View) {
+
+        val name = binding.nameText.text.toString()
+
+        if (selectedLat != null && selectedLng != null) {
+
+            val place = Place(name, selectedLat!!, selectedLng!!)
+            compositeDisposable.add(
+                placeDao.insertAll(place)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(this::handleResponse)
+            )
+        }
+    }
+
     fun deleteBtnClick(view: View) {}
+
+    private fun handleResponse() {
+        val intent = Intent(this@MapsActivity, MainActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        startActivity(intent)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        compositeDisposable.clear()
+    }
 }
