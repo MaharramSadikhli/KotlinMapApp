@@ -46,7 +46,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
     private lateinit var db: PlaceDB
     private lateinit var placeDao: PlaceDao
     private val compositeDisposable = CompositeDisposable()
-    var placeFromMainActivity: Place? = null
+    private var placeFromMainActivity: Place? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,6 +66,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
         selectedLat = 0.0
         selectedLng = 0.0
 
+        binding.saveButton.isEnabled = false
+
         db = Room.databaseBuilder(
             applicationContext, PlaceDB::class.java, "Places"
         ).build()
@@ -75,12 +77,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-        mMap.setOnMapLongClickListener(this@MapsActivity)
+
+
 
         val intent = intent
         val info = intent.getStringExtra("info")
 
         if (info == "new") {
+
+            mMap.setOnMapLongClickListener(this@MapsActivity)
+
 
             binding.saveButton.visibility = View.VISIBLE
             binding.deleteButton.visibility = View.GONE
@@ -126,7 +132,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
                     LocationManager.GPS_PROVIDER, 1000, 0f, locationListener
                 )
 
-                val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                val lastLocation =
+                    locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
 
                 if (lastLocation != null) {
                     val userLastLocation = LatLng(lastLocation.latitude, lastLocation.longitude)
@@ -139,13 +146,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
             mMap.clear()
 
+
             placeFromMainActivity = intent.getSerializableExtra("place") as? Place
 
-            placeFromMainActivity?.let { place->
+            placeFromMainActivity?.let { place ->
                 val latLng = LatLng(place.lat, place.lng)
 
                 mMap.addMarker(MarkerOptions().position(latLng).title(place.name))
-                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng,15f))
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
 
                 binding.nameText.setText(place.name)
                 binding.saveButton.visibility = View.GONE
@@ -199,12 +207,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
 
     override fun onMapLongClick(p0: LatLng) {
 
+
         mMap.clear()
 
         mMap.addMarker(MarkerOptions().position(p0))
 
         selectedLat = p0.latitude
         selectedLng = p0.longitude
+
+        binding.saveButton.isEnabled = true
 
     }
 
@@ -224,7 +235,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback, GoogleMap.OnMapLon
         }
     }
 
-    fun deleteBtnClick(view: View) {}
+    fun deleteBtnClick(view: View) {
+        placeFromMainActivity?.let { place ->
+            compositeDisposable.add(
+                placeDao.delete(place)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(this::handleResponse)
+            )
+        }
+    }
 
     private fun handleResponse() {
         val intent = Intent(this@MapsActivity, MainActivity::class.java)
