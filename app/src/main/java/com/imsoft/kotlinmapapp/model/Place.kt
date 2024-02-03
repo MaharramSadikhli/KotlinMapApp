@@ -3,6 +3,7 @@ package com.imsoft.kotlinmapapp.model
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.io.Serializable
 
 @Entity
 class Place(
@@ -16,7 +17,7 @@ class Place(
     @ColumnInfo(name = "longitude")
     var lng: Double
 
-) {
+): Serializable {
 
     @PrimaryKey(autoGenerate = true)
     var id = 0
